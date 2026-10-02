@@ -1,0 +1,44 @@
+name: Release
+
+# 推送 v* 標籤（例如 v1.0.1）就會自動打包並發佈到 GitHub Releases，
+# 已安裝的程式下次開啟時就會偵測到新版本並詢問是否更新。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install vpk
+        run: dotnet tool install -g vpk
+
+      - name: Publish
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet publish password/password.csproj -c Release -r win-x64 --self-contained -o publish /p:Version=$VERSION
+
+      - name: Pack
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          vpk pack --packId PasswordKeeper --packVersion "$VERSION" --packDir publish --mainExe PasswordKeeper.exe --packTitle "帳號密碼紀錄"
+
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --publish --releaseName "v$VERSION" --tag "${{ github.ref_name }}" --token "$GH_TOKEN"
