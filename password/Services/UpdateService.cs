@@ -66,6 +66,8 @@ namespace password.Services
         /// <summary>下載新版安裝檔並啟動它；呼叫端應在這之後結束程式，讓安裝程式能覆蓋檔案。</summary>
         public async Task DownloadAndLaunchAsync(UpdateInfo info, Action<int>? progress = null)
         {
+            // 先清掉先前（例如失敗或中斷的更新）遺留的舊安裝檔，避免一直堆積
+            CleanupService.DeleteMatching(Path.GetTempPath(), CleanupService.SetupFilePattern);
             var path = Path.Combine(Path.GetTempPath(), $"PasswordKeeper-Setup-{info.Version}.exe");
 
             using (var resp = await Http.GetAsync(info.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))

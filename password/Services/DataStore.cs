@@ -13,10 +13,11 @@ namespace password.Services
     public static class DataStore
     {
         // 環境變數 PASSWORDKEEPER_DATA_DIR 可指定其他資料夾（測試用）；平常不設定，存在 %AppData%\PasswordKeeper
-        private static readonly string FilePath = Path.Combine(
+        public static readonly string DataDirectory =
             Environment.GetEnvironmentVariable("PASSWORDKEEPER_DATA_DIR")
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PasswordKeeper"),
-            "data.bin");
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PasswordKeeper");
+
+        private static readonly string FilePath = Path.Combine(DataDirectory, "data.bin");
 
         public static List<AccountEntry> Load()
         {

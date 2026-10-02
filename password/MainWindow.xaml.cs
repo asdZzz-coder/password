@@ -33,6 +33,8 @@ namespace password
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            CleanupService.RunInBackground(); // 清掉更新後遺留的舊檔
+
             await CheckForUpdateAsync(manual: false);
         }
 
@@ -293,6 +295,8 @@ namespace password
 
         private void UpdateStatus()
         {
+            // 視窗標題列顯示版本：安裝版為「帳號密碼紀錄 v1.0.6」，直接從 Visual Studio 執行則標示開發版
+            Title = _updater.IsInstalled ? $"帳號密碼紀錄 v{_updater.CurrentVersion}" : "帳號密碼紀錄（開發版）";
             CountText.Text = $"共 {_entries.Count} 筆";
             StatusText.Text = $"版本 {_updater.CurrentVersion}";
         }
