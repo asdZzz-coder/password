@@ -56,6 +56,7 @@ namespace password
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             CleanupService.RunInBackground(); // 清掉更新後遺留的舊檔
+            DesktopShortcutService.EnsureOnce(_updater.IsInstalled); // 安裝版第一次開啟時補上桌面捷徑
 
             await CheckForUpdateAsync(manual: false);
         }
