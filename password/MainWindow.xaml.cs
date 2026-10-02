@@ -191,18 +191,41 @@ namespace password
         {
             var pwd = GetPassword();
             if (pwd.Length == 0) return;
-            Clipboard.SetText(pwd);
-            StatusText.Text = "密碼已複製到剪貼簿";
+            try
+            {
+                Clipboard.SetText(pwd);
+                StatusText.Text = "密碼已複製到剪貼簿";
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // 剪貼簿被其他程式占用時會丟例外
+                MessageBox.Show("剪貼簿目前被其他程式占用，請稍後再試。", "複製密碼");
+            }
         }
 
         private void PersistAndRefresh()
         {
-            DataStore.Save(_entries);
+            var selected = EntryList.SelectedItem as AccountEntry;
+            try
+            {
+                DataStore.Save(_entries);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("儲存失敗，資料尚未寫入硬碟：" + ex.Message, "儲存", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
             _view.Refresh();
+            // Refresh 會清掉選取，重新選回同一筆（改名後排序位置會變）
+            if (selected != null && _entries.Contains(selected))
+                EntryList.SelectedItem = selected;
             UpdateStatus();
         }
 
-        private void UpdateStatus() => StatusText.Text = $"共 {_entries.Count} 筆　｜　版本 {_updater.CurrentVersion}";
+        private void UpdateStatus()
+        {
+            CountText.Text = $"共 {_entries.Count} 筆";
+            StatusText.Text = $"版本 {_updater.CurrentVersion}";
+        }
 
         // ---------- Excel 匯出 / 匯入 ----------
 
@@ -239,6 +262,12 @@ namespace password
             catch (Exception ex)
             {
                 MessageBox.Show("匯入失敗：" + ex.Message, "匯入 Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (imported.Count == 0)
+            {
+                MessageBox.Show("這個檔案裡沒有可匯入的資料（第一列需為標題列：App、帳號、密碼、備註）。", "匯入 Excel");
                 return;
             }
 

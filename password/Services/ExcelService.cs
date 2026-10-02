@@ -1,3 +1,4 @@
+using System.IO;
 using ClosedXML.Excel;
 using password.Models;
 
@@ -19,20 +20,26 @@ namespace password.Services
             foreach (var e in entries)
             {
                 // 一律寫成文字，避免 Excel 把純數字密碼的前導 0 吃掉
-                ws.Cell(r, 1).SetValue(e.AppName);
-                ws.Cell(r, 2).SetValue(e.Username);
-                ws.Cell(r, 3).SetValue(e.Password);
-                ws.Cell(r, 4).SetValue(e.Note);
+                ws.Cell(r, 1).SetValue(Escape(e.AppName));
+                ws.Cell(r, 2).SetValue(Escape(e.Username));
+                ws.Cell(r, 3).SetValue(Escape(e.Password));
+                ws.Cell(r, 4).SetValue(Escape(e.Note));
                 r++;
             }
             ws.Columns().AdjustToContents();
             wb.SaveAs(path);
         }
 
+        // 開頭的 ' 會被 ClosedXML 當成 Excel 的「文字前綴」而吞掉，多加一個才能原樣保留
+        private static string Escape(string s) => s.StartsWith('\'') ? "'" + s : s;
+
         public static List<AccountEntry> Import(string path)
         {
-            using var wb = new XLWorkbook(path);
-            var ws = wb.Worksheets.First();
+            // 允許讀取「正在被 Excel 開啟」的檔案，否則會因檔案被鎖定而失敗
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var wb = new XLWorkbook(stream);
+            var ws = wb.Worksheets.FirstOrDefault();
+            if (ws == null) return new List<AccountEntry>();
             var result = new List<AccountEntry>();
             foreach (var row in ws.RowsUsed().Skip(1)) // 跳過標題列
             {
