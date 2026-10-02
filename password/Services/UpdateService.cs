@@ -30,7 +30,7 @@ namespace password.Services
 
         public bool IsInstalled => _manager.IsInstalled;
 
-        public string CurrentVersion => _manager.CurrentVersion?.ToString() ?? "開發版";
+        public string CurrentVersion => _manager.CurrentVersion?.ToString() ?? Loc.T("dev_version");
 
         private static HttpClient CreateClient()
         {

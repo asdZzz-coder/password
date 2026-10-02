@@ -1,7 +1,7 @@
 <Window x:Class="password.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="帳號密碼紀錄" Height="840" Width="960" MinHeight="560" MinWidth="840"
+        Title="Password Keeper" Height="840" Width="960" MinHeight="560" MinWidth="840"
         WindowStartupLocation="CenterScreen"
         Icon="Assets/app.ico"
         Background="{StaticResource AppBgBrush}"
@@ -41,9 +41,9 @@
                 </StackPanel>
                 <!-- 已連結 App 的數量徽章（沒有連結時隱藏） -->
                 <Border Grid.Column="2" CornerRadius="10" Padding="8,2" VerticalAlignment="Center"
-                        Background="{StaticResource AccentSoftBrush}" ToolTip="已連結的 App 數量">
+                        Background="{StaticResource AccentSoftBrush}" ToolTip="{DynamicResource S_links_tooltip}">
                     <TextBlock FontSize="12" Foreground="{StaticResource AccentBrush}">
-                        <Run Text="{Binding LinkCount, Mode=OneWay}"/><Run Text=" 個連結"/>
+                        <Run Text="{Binding LinkCount, Mode=OneWay}"/><Run Text="{DynamicResource S_links_suffix}"/>
                     </TextBlock>
                     <Border.Style>
                         <Style TargetType="Border">
@@ -70,16 +70,17 @@
         <!-- 標題列 -->
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Content="匯出 Excel" Margin="0,0,8,0" Click="Export_Click"/>
-                <Button Content="匯入 Excel" Margin="0,0,8,0" Click="Import_Click"/>
-                <Button Content="檢查更新" Click="CheckUpdate_Click"/>
+                <Button Content="{DynamicResource S_btn_lang}" ToolTip="{DynamicResource S_btn_lang_tip}" Margin="0,0,8,0" Click="Lang_Click"/>
+                <Button Content="{DynamicResource S_btn_export}" Margin="0,0,8,0" Click="Export_Click"/>
+                <Button Content="{DynamicResource S_btn_import}" Margin="0,0,8,0" Click="Import_Click"/>
+                <Button Content="{DynamicResource S_btn_check_update}" Click="CheckUpdate_Click"/>
             </StackPanel>
             <Border Width="42" Height="42" CornerRadius="12" Background="{StaticResource AccentBrush}">
                 <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="20" Foreground="White"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="帳號密碼紀錄" FontSize="20" FontWeight="Bold"/>
+                <TextBlock Text="{DynamicResource S_app_title}" FontSize="20" FontWeight="Bold"/>
                 <TextBlock x:Name="CountText" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
             </StackPanel>
         </DockPanel>
@@ -101,7 +102,7 @@
 
                     <Grid Margin="0,0,0,12">
                         <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged"/>
-                        <TextBlock Text="搜尋 App、帳號、備註…" Foreground="#9CA3AF" Margin="11,0,0,0"
+                        <TextBlock Text="{DynamicResource S_search_placeholder}" Foreground="#9CA3AF" Margin="11,0,0,0"
                                    VerticalAlignment="Center" IsHitTestVisible="False">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -121,7 +122,7 @@
                              SelectionChanged="EntryList_SelectionChanged"/>
 
                     <!-- 空清單提示 -->
-                    <TextBlock Grid.Row="1" Text="還沒有資料&#x0A;從右邊新增第一筆吧" TextAlignment="Center"
+                    <TextBlock Grid.Row="1" Text="{DynamicResource S_empty_list}" TextAlignment="Center"
                                Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Center"
                                VerticalAlignment="Center" IsHitTestVisible="False">
                         <TextBlock.Style>
@@ -147,35 +148,35 @@
                 </Grid.RowDefinitions>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="0,0,6,0">
-                    <TextBlock Text="帳號資料" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,14"/>
+                    <TextBlock Text="{DynamicResource S_form_title}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,14"/>
 
-                    <TextBlock Text="App 名稱" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource S_lbl_app}" Style="{StaticResource FieldLabel}"/>
                     <TextBox x:Name="AppBox" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="帳號" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource S_lbl_user}" Style="{StaticResource FieldLabel}"/>
                     <TextBox x:Name="UserBox" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="密碼" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource S_lbl_pwd}" Style="{StaticResource FieldLabel}"/>
                     <Grid>
                         <PasswordBox x:Name="PwdBox"/>
                         <TextBox x:Name="PwdText" Visibility="Collapsed"/>
                     </Grid>
-                    <CheckBox x:Name="ShowPwd" Content="顯示密碼" Margin="2,8,0,12"
+                    <CheckBox x:Name="ShowPwd" Content="{DynamicResource S_show_pwd}" Margin="2,8,0,12"
                               Checked="ShowPwd_Changed" Unchecked="ShowPwd_Changed"/>
 
-                    <TextBlock Text="備註" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource S_lbl_note}" Style="{StaticResource FieldLabel}"/>
                     <TextBox x:Name="NoteBox" Margin="0,0,0,12" Height="48" AcceptsReturn="True"
                              TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
 
                     <!-- 已連結的 App：條列清單，手動輸入 -->
-                    <TextBlock Text="已連結的 App" Style="{StaticResource FieldLabel}"/>
+                    <TextBlock Text="{DynamicResource S_lbl_links}" Style="{StaticResource FieldLabel}"/>
                     <Grid Margin="0,0,0,6">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="LinkBox" KeyDown="LinkBox_KeyDown"/>
-                        <Button Grid.Column="1" Content="加入" Margin="8,0,0,0" Padding="14,5" Click="AddLink_Click"/>
+                        <Button Grid.Column="1" Content="{DynamicResource S_btn_add_link}" Margin="8,0,0,0" Padding="14,5" Click="AddLink_Click"/>
                     </Grid>
                     <Border Background="{StaticResource AppBgBrush}" CornerRadius="8" Padding="10,6" Margin="0,0,0,4" MinHeight="40">
                         <Grid>
@@ -193,14 +194,14 @@
                                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding}" VerticalAlignment="Center"
                                                            TextWrapping="Wrap"/>
-                                                <Button Grid.Column="2" Content="✕" FontSize="11" ToolTip="移除"
+                                                <Button Grid.Column="2" Content="✕" FontSize="11" ToolTip="{DynamicResource S_remove_tip}"
                                                         Style="{StaticResource IconButton}" Click="RemoveLink_Click"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                            <TextBlock Text="尚未記錄，輸入 App 名稱後按 Enter" FontSize="12" Foreground="#9CA3AF"
+                            <TextBlock Text="{DynamicResource S_links_empty}" FontSize="12" Foreground="#9CA3AF"
                                        VerticalAlignment="Center" IsHitTestVisible="False">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -220,17 +221,17 @@
 
                 <!-- 操作按鈕固定在卡片底部，表單再長也不會被捲出畫面 -->
                 <UniformGrid Grid.Row="1" Columns="2" Rows="2" Margin="0,14,0,0">
-                    <Button Content="新增" Style="{StaticResource PrimaryButton}" Margin="0,0,5,10" Click="Add_Click"/>
-                    <Button Content="儲存修改" Margin="5,0,0,10" Click="Save_Click"/>
-                    <Button Content="複製密碼" Margin="0,0,5,0" Click="CopyPwd_Click"/>
-                    <Button Content="刪除" Style="{StaticResource DangerButton}" Margin="5,0,0,0" Click="Delete_Click"/>
+                    <Button Content="{DynamicResource S_btn_new}" Style="{StaticResource PrimaryButton}" Margin="0,0,5,10" Click="Add_Click"/>
+                    <Button Content="{DynamicResource S_btn_save}" Margin="5,0,0,10" Click="Save_Click"/>
+                    <Button Content="{DynamicResource S_btn_copy}" Margin="0,0,5,0" Click="CopyPwd_Click"/>
+                    <Button Content="{DynamicResource S_btn_delete}" Style="{StaticResource DangerButton}" Margin="5,0,0,0" Click="Delete_Click"/>
                 </UniformGrid>
                 </Grid>
             </Border>
         </Grid>
 
         <DockPanel Grid.Row="2" Margin="2,12,0,0">
-            <Button DockPanel.Dock="Right" Content="清除全部資料" Style="{StaticResource DangerButton}"
+            <Button DockPanel.Dock="Right" Content="{DynamicResource S_btn_delete_all}" Style="{StaticResource DangerButton}"
                     FontSize="12" Padding="12,4" Click="DeleteAll_Click"/>
             <TextBlock x:Name="StatusText" FontSize="12" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"/>
         </DockPanel>

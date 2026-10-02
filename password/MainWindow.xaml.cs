@@ -27,7 +27,10 @@ namespace password
             EntryList.ItemsSource = _view;
             LinksList.ItemsSource = _formLinks;
             UpdateStatus();
+            Loc.LanguageChanged += UpdateStatus; // 切換語言時重新整理標題與狀態列
         }
+
+        private void Lang_Click(object sender, RoutedEventArgs e) => Loc.Toggle();
 
         // ---------- 啟動時檢查更新（詢問使用者） ----------
 
@@ -48,7 +51,7 @@ namespace password
             if (!_updater.IsInstalled)
             {
                 if (manual)
-                    MessageBox.Show("目前是開發版（非安裝版），無法線上更新。", "檢查更新");
+                    MessageBox.Show(Loc.T("update_dev"), Loc.T("update_title"));
                 return;
             }
 
@@ -57,17 +60,17 @@ namespace password
                 var info = await _updater.CheckAsync();
                 if (info == null)
                 {
-                    if (manual) MessageBox.Show($"目前已是最新版本（{_updater.CurrentVersion}）。", "檢查更新");
+                    if (manual) MessageBox.Show(Loc.T("update_latest", _updater.CurrentVersion), Loc.T("update_title"));
                     return;
                 }
 
                 var answer = MessageBox.Show(
-                    $"發現新版本 {info.Version}（目前 {_updater.CurrentVersion}）。\n\n是否現在更新？更新完成後程式會自動重新啟動。",
-                    "有新版本", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    Loc.T("update_found", info.Version, _updater.CurrentVersion),
+                    Loc.T("update_found_title"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (answer != MessageBoxResult.Yes) return;
 
-                StatusText.Text = "下載更新中…";
-                await _updater.DownloadAndLaunchAsync(info, p => Dispatcher.Invoke(() => StatusText.Text = $"下載更新中… {p}%"));
+                StatusText.Text = Loc.T("downloading");
+                await _updater.DownloadAndLaunchAsync(info, p => Dispatcher.Invoke(() => StatusText.Text = Loc.T("downloading_pct", p)));
                 // 安裝程式已啟動，結束本程式讓它能覆蓋檔案；安裝完成後會自動重新開啟
                 Application.Current.Shutdown();
             }
@@ -75,7 +78,7 @@ namespace password
             {
                 UpdateStatus();
                 // 啟動時的自動檢查失敗（例如沒網路）不打擾使用者
-                if (manual) MessageBox.Show("檢查更新失敗：" + ex.Message, "檢查更新", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (manual) MessageBox.Show(Loc.T("update_failed", ex.Message), Loc.T("update_title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -180,7 +183,7 @@ namespace password
         {
             if (AppBox.Text.Trim().Length == 0)
             {
-                MessageBox.Show("請輸入 App 名稱。", "提示");
+                MessageBox.Show(Loc.T("need_app_name"), Loc.T("hint_title"));
                 return null;
             }
             AddPendingLink(); // 輸入框裡打了字但還沒按「加入」的，一併存起來
@@ -207,7 +210,7 @@ namespace password
         {
             if (EntryList.SelectedItem is not AccountEntry selected)
             {
-                MessageBox.Show("請先在左邊選一筆要修改的資料，或按「新增」。", "提示");
+                MessageBox.Show(Loc.T("select_first"), Loc.T("hint_title"));
                 return;
             }
             var edited = ReadForm();
@@ -224,7 +227,7 @@ namespace password
         private void Delete_Click(object sender, RoutedEventArgs e)
         {
             if (EntryList.SelectedItem is not AccountEntry selected) return;
-            var ok = MessageBox.Show($"確定刪除「{selected.AppName}」？", "刪除", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var ok = MessageBox.Show(Loc.T("delete_confirm", selected.AppName), Loc.T("delete_title"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (ok != MessageBoxResult.Yes) return;
 
             _entries.Remove(selected);
@@ -237,26 +240,26 @@ namespace password
             int count = _entries.Count;
             if (count == 0)
             {
-                MessageBox.Show("目前沒有任何資料可以清除。", "清除全部資料");
+                MessageBox.Show(Loc.T("delall_none"), Loc.T("delall_title"));
                 return;
             }
 
             // 兩段確認，且預設按鈕都是「否」，避免手滑按 Enter 就刪掉
             var first = MessageBox.Show(
-                $"即將刪除全部 {count} 筆帳號資料。\n\n建議先用「匯出 Excel」備份。\n\n確定要繼續嗎？",
-                "清除全部資料（1/2）", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                Loc.T("delall_1", count),
+                Loc.T("delall_1_title"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
             if (first != MessageBoxResult.Yes) return;
 
             var second = MessageBox.Show(
-                $"最後確認：真的要永久刪除全部 {count} 筆資料嗎？\n\n刪除後無法復原。",
-                "清除全部資料（2/2）", MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
+                Loc.T("delall_2", count),
+                Loc.T("delall_2_title"), MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
             if (second != MessageBoxResult.Yes) return;
 
             _entries.Clear();
             SearchBox.Clear();
             ClearForm();
             PersistAndRefresh();
-            StatusText.Text = $"已清除全部資料（共 {count} 筆）";
+            StatusText.Text = Loc.T("delall_done", count);
         }
 
         private void CopyPwd_Click(object sender, RoutedEventArgs e)
@@ -266,12 +269,12 @@ namespace password
             try
             {
                 Clipboard.SetText(pwd);
-                StatusText.Text = "密碼已複製到剪貼簿";
+                StatusText.Text = Loc.T("copy_done");
             }
             catch (System.Runtime.InteropServices.COMException)
             {
                 // 剪貼簿被其他程式占用時會丟例外
-                MessageBox.Show("剪貼簿目前被其他程式占用，請稍後再試。", "複製密碼");
+                MessageBox.Show(Loc.T("copy_busy"), Loc.T("copy_title"));
             }
         }
 
@@ -284,7 +287,7 @@ namespace password
             }
             catch (Exception ex)
             {
-                MessageBox.Show("儲存失敗，資料尚未寫入硬碟：" + ex.Message, "儲存", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.T("save_failed", ex.Message), Loc.T("save_title"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             _view.Refresh();
             // Refresh 會清掉選取，重新選回同一筆（改名後排序位置會變）
@@ -296,9 +299,9 @@ namespace password
         private void UpdateStatus()
         {
             // 視窗標題列顯示版本：安裝版為「帳號密碼紀錄 v1.0.6」，直接從 Visual Studio 執行則標示開發版
-            Title = _updater.IsInstalled ? $"帳號密碼紀錄 v{_updater.CurrentVersion}" : "帳號密碼紀錄（開發版）";
-            CountText.Text = $"共 {_entries.Count} 筆";
-            StatusText.Text = $"版本 {_updater.CurrentVersion}";
+            Title = _updater.IsInstalled ? Loc.T("title_installed", _updater.CurrentVersion) : Loc.T("title_dev");
+            CountText.Text = Loc.T("count_text", _entries.Count);
+            StatusText.Text = Loc.T("version_text", _updater.CurrentVersion);
         }
 
         // ---------- Excel 匯出 / 匯入 ----------
@@ -307,25 +310,25 @@ namespace password
         {
             var dlg = new SaveFileDialog
             {
-                Filter = "Excel 檔案 (*.xlsx)|*.xlsx",
-                FileName = $"帳號密碼_{DateTime.Now:yyyyMMdd}.xlsx",
+                Filter = Loc.T("excel_filter"),
+                FileName = Loc.T("export_filename", DateTime.Now.ToString("yyyyMMdd")),
             };
             if (dlg.ShowDialog() != true) return;
 
             try
             {
                 ExcelService.Export(_entries, dlg.FileName);
-                MessageBox.Show("匯出完成。\n\n注意：Excel 內的密碼是明文，請妥善保管，用完建議刪除。", "匯出 Excel");
+                MessageBox.Show(Loc.T("export_done"), Loc.T("export_title"));
             }
             catch (Exception ex)
             {
-                MessageBox.Show("匯出失敗：" + ex.Message, "匯出 Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.T("export_failed", ex.Message), Loc.T("export_title"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void Import_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new OpenFileDialog { Filter = "Excel 檔案 (*.xlsx)|*.xlsx" };
+            var dlg = new OpenFileDialog { Filter = Loc.T("excel_filter") };
             if (dlg.ShowDialog() != true) return;
 
             List<AccountEntry> imported;
@@ -335,19 +338,19 @@ namespace password
             }
             catch (Exception ex)
             {
-                MessageBox.Show("匯入失敗：" + ex.Message, "匯入 Excel", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.T("import_failed", ex.Message), Loc.T("import_title"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             if (imported.Count == 0)
             {
-                MessageBox.Show("這個檔案裡沒有可匯入的資料（第一列需為標題列：App、帳號、密碼、備註）。", "匯入 Excel");
+                MessageBox.Show(Loc.T("import_empty"), Loc.T("import_title"));
                 return;
             }
 
             var mode = MessageBox.Show(
-                $"讀到 {imported.Count} 筆資料。\n\n是 = 合併到現有資料（App 與帳號相同者略過）\n否 = 清除現有資料，完全以 Excel 為準\n取消 = 不匯入",
-                "匯入 Excel", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                Loc.T("import_confirm", imported.Count),
+                Loc.T("import_title"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (mode == MessageBoxResult.Cancel) return;
 
             if (mode == MessageBoxResult.No)
@@ -366,7 +369,7 @@ namespace password
 
             ClearForm();
             PersistAndRefresh();
-            MessageBox.Show($"匯入完成，新增 {added} 筆。", "匯入 Excel");
+            MessageBox.Show(Loc.T("import_done", added), Loc.T("import_title"));
         }
     }
 }

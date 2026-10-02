@@ -6,14 +6,19 @@ namespace password.Services
 {
     public static class ExcelService
     {
-        private static readonly string[] Headers = { "App", "帳號", "密碼", "備註", "連結的 App" };
+        // 標題列依目前介面語言輸出；匯入時會略過標題列，所以中英文的檔案互通
+        private static string[] Headers => new[]
+        {
+            Loc.T("hdr_app"), Loc.T("hdr_user"), Loc.T("hdr_pwd"), Loc.T("hdr_note"), Loc.T("hdr_links"),
+        };
 
         public static void Export(IEnumerable<AccountEntry> entries, string path)
         {
             using var wb = new XLWorkbook();
-            var ws = wb.Worksheets.Add("帳號密碼");
-            for (int c = 0; c < Headers.Length; c++)
-                ws.Cell(1, c + 1).Value = Headers[c];
+            var ws = wb.Worksheets.Add(Loc.T("sheet_name"));
+            var headers = Headers;
+            for (int c = 0; c < headers.Length; c++)
+                ws.Cell(1, c + 1).Value = headers[c];
             ws.Row(1).Style.Font.Bold = true;
 
             int r = 2;
