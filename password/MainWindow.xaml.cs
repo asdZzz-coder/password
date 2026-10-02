@@ -60,12 +60,14 @@ namespace password
                 }
 
                 var answer = MessageBox.Show(
-                    $"發現新版本 {info.TargetFullRelease.Version}（目前 {_updater.CurrentVersion}）。\n\n是否現在更新？更新完成後程式會自動重新啟動。",
+                    $"發現新版本 {info.Version}（目前 {_updater.CurrentVersion}）。\n\n是否現在更新？更新完成後程式會自動重新啟動。",
                     "有新版本", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (answer != MessageBoxResult.Yes) return;
 
                 StatusText.Text = "下載更新中…";
-                await _updater.DownloadAndApplyAsync(info, p => Dispatcher.Invoke(() => StatusText.Text = $"下載更新中… {p}%"));
+                await _updater.DownloadAndLaunchAsync(info, p => Dispatcher.Invoke(() => StatusText.Text = $"下載更新中… {p}%"));
+                // 安裝程式已啟動，結束本程式讓它能覆蓋檔案；安裝完成後會自動重新開啟
+                Application.Current.Shutdown();
             }
             catch (Exception ex)
             {
