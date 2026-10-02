@@ -79,7 +79,6 @@ namespace password.Services
             ("btn_check_update", "檢查更新", "Check for Updates"),
             ("search_placeholder", "搜尋 App、帳號、備註…", "Search app, username, notes…"),
             ("empty_list", "還沒有資料\n從右邊新增第一筆吧", "No entries yet\nAdd your first one on the right"),
-            ("links_suffix", " 個連結", " links"),
             ("links_tooltip", "已連結的 App 數量", "Number of linked apps"),
             ("form_title", "帳號資料", "Account details"),
             ("lbl_app", "App 名稱", "App name"),
@@ -133,6 +132,7 @@ namespace password.Services
                              "Version {0} is available (current: {1}).\n\nUpdate now? The app will restart automatically when finished."),
             ("downloading", "下載更新中…", "Downloading update…"),
             ("downloading_pct", "下載更新中… {0}%", "Downloading update… {0}%"),
+            ("update_bad_package", "更新包內容不完整，找不到安裝程式。", "The update package is incomplete: installer not found."),
             ("update_failed", "檢查更新失敗：{0}", "Update check failed: {0}"),
 
             // ----- Excel -----

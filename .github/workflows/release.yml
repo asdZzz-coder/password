@@ -1,7 +1,7 @@
 name: Release
 
-# 推送 v* 標籤（例如 v1.0.1）就會自動打包並發佈到 GitHub Releases，
-# 已安裝的程式下次開啟時就會偵測到新版本並詢問是否更新。
+# 推送 v* 標籤（例如 v1.0.8）就會自動用 ClickOnce 打包並發佈到 GitHub Releases，
+# 已安裝的程式下次開啟時就會偵測到新版本並詢問是否更新（更新檔一樣從 Release 下載）。
 on:
   push:
     tags:
@@ -20,25 +20,34 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install vpk
-        run: dotnet tool install -g vpk --version 1.2.161
+      # ClickOnce 的 setup.exe 與 manifest 需要 .NET Framework 版的 MSBuild（Visual Studio 內建）
+      - uses: microsoft/setup-msbuild@v2
 
-      - name: Publish
-        shell: bash
+      - name: Publish (ClickOnce)
+        shell: pwsh
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          dotnet publish password/password.csproj -c Release -r win-x64 --self-contained -o publish -p:Version=$VERSION
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          msbuild password/password.csproj /restore /t:Publish `
+            /p:PublishProfile=ClickOnceProfile `
+            /p:RuntimeIdentifier=win-x64 /p:SelfContained=true `
+            /p:Version=$version /p:ApplicationVersion="$version.0" `
+            /p:PublishDir="$PWD\clickonce\" /p:PublishUrl="$PWD\clickonce\" `
+            /v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Pack
-        shell: bash
+      - name: Zip installer
+        shell: pwsh
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          vpk pack --packId PasswordKeeper --packVersion "$VERSION" --packDir publish --mainExe PasswordKeeper.exe --icon password/Assets/app.ico --packTitle "帳號密碼紀錄"
+          # 只打包 ClickOnce 安裝需要的檔案：setup.exe、PasswordKeeper.application、Application Files
+          $items = @('clickonce\setup.exe', 'clickonce\PasswordKeeper.application', 'clickonce\Application Files')
+          foreach ($i in $items) { if (-not (Test-Path $i)) { throw "missing $i" } }
+          Compress-Archive -Path $items -DestinationPath PasswordKeeper-ClickOnce.zip
+          Get-Item PasswordKeeper-ClickOnce.zip | Select-Object Name, Length
 
       - name: Upload to GitHub Release
-        shell: bash
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --publish --releaseName "v$VERSION" --tag "${{ github.ref_name }}" --token "$GH_TOKEN"
+          $notes = "下載 PasswordKeeper-ClickOnce.zip，解壓縮後執行 setup.exe 安裝。`n`nDownload PasswordKeeper-ClickOnce.zip, extract it, and run setup.exe."
+          gh release create "${{ github.ref_name }}" PasswordKeeper-ClickOnce.zip --title "${{ github.ref_name }}" --notes $notes

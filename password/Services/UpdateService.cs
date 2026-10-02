@@ -1,36 +1,30 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
-using Velopack;
-using Velopack.Sources;
 
 namespace password.Services
 {
     public record UpdateInfo(Version Version, string DownloadUrl, long Size);
 
     /// <summary>
-    /// 線上更新：向 GitHub Releases 查詢最新版，使用者同意後下載新版安裝檔（Setup.exe）並執行。
-    ///
-    /// 不使用 Velopack 內建的 Update.exe 來套用更新：它沒有數位簽章，
-    /// 在開啟「智慧型應用程式控制 / 應用程式控制原則」的電腦上會被 Windows 封鎖。
-    /// 只有「安裝版」才能更新；直接從 Visual Studio 執行時 IsInstalled 為 false，會略過。
+    /// 線上更新：程式以 ClickOnce 安裝，但不使用 ClickOnce 內建的更新。
+    /// 由本類別向 GitHub Releases 查詢最新版，使用者同意後下載 ClickOnce 安裝包（zip），
+    /// 放回當初安裝的資料夾後開啟 PasswordKeeper.application，由 ClickOnce 升級成新版。
+    /// 只有「安裝版」才能更新；直接從 Visual Studio / dotnet run 執行時 IsInstalled 為 false，會略過。
     /// </summary>
     public class UpdateService
     {
         private const string Owner = "asdZzz-coder";
         private const string Repo = "password";
-        private const string SetupAssetName = "PasswordKeeper-win-Setup.exe";
+        public const string PackageAssetName = "PasswordKeeper-ClickOnce.zip";
+
+        /// <summary>下載與解壓更新包的資料夾（啟動時由 CleanupService 清掉）。</summary>
+        public static readonly string DownloadFolder = Path.Combine(Path.GetTempPath(), "PasswordKeeper-Update");
 
         private static readonly HttpClient Http = CreateClient();
-
-        // 只用來判斷是否為安裝版、取得目前版本；實際的檢查與下載由本類別自行處理
-        private readonly UpdateManager _manager =
-            new(new GithubSource($"https://github.com/{Owner}/{Repo}", accessToken: null, prerelease: false));
-
-        public bool IsInstalled => _manager.IsInstalled;
-
-        public string CurrentVersion => _manager.CurrentVersion?.ToString() ?? Loc.T("dev_version");
 
         private static HttpClient CreateClient()
         {
@@ -40,10 +34,30 @@ namespace password.Services
             return c;
         }
 
+        /// <summary>
+        /// 是否為 ClickOnce 安裝版。ClickOnce 啟動程式時會設定 ClickOnce_IsNetworkDeployed；
+        /// 保險起見也檢查執行位置是否在 ClickOnce 的安裝快取（%LocalAppData%\Apps\2.0）。
+        /// </summary>
+        public bool IsInstalled =>
+            string.Equals(Environment.GetEnvironmentVariable("ClickOnce_IsNetworkDeployed"), "true", StringComparison.OrdinalIgnoreCase)
+            || AppContext.BaseDirectory.Contains(@"\Apps\2.0\", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>程式本身的版本（建置時由 -p:Version 帶入，與 ClickOnce 的 ApplicationVersion 一致）。</summary>
+        public Version Version
+        {
+            get
+            {
+                var v = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
+                return new Version(v.Major, v.Minor, Math.Max(v.Build, 0));
+            }
+        }
+
+        public string CurrentVersion => IsInstalled ? Version.ToString() : Loc.T("dev_version");
+
         /// <summary>檢查是否有新版；沒有、或非安裝版則回傳 null。</summary>
         public async Task<UpdateInfo?> CheckAsync()
         {
-            if (!IsInstalled || _manager.CurrentVersion == null) return null;
+            if (!IsInstalled) return null;
 
             using var resp = await Http.GetAsync($"https://api.github.com/repos/{Owner}/{Repo}/releases/latest");
             resp.EnsureSuccessStatusCode();
@@ -52,30 +66,31 @@ namespace password.Services
 
             var tag = root.GetProperty("tag_name").GetString() ?? "";
             if (!Version.TryParse(tag.TrimStart('v', 'V'), out var latest)) return null;
-            if (!Version.TryParse(_manager.CurrentVersion.ToString().Split('-', '+')[0], out var current)) return null;
-            if (latest <= current) return null;
+            if (latest <= Version) return null;
 
             foreach (var asset in root.GetProperty("assets").EnumerateArray())
             {
-                if (asset.GetProperty("name").GetString() == SetupAssetName)
+                if (asset.GetProperty("name").GetString() == PackageAssetName)
                     return new UpdateInfo(latest, asset.GetProperty("browser_download_url").GetString()!, asset.GetProperty("size").GetInt64());
             }
-            return null; // 該版本還沒有附上安裝檔（打包尚未完成）
+            return null; // 該版本還沒有附上安裝包（打包尚未完成）
         }
 
-        /// <summary>下載新版安裝檔並啟動它；呼叫端應在這之後結束程式，讓安裝程式能覆蓋檔案。</summary>
+        /// <summary>下載新版安裝包、解壓並啟動安裝；呼叫端應在這之後結束程式。</summary>
         public async Task DownloadAndLaunchAsync(UpdateInfo info, Action<int>? progress = null)
         {
-            // 先清掉先前（例如失敗或中斷的更新）遺留的舊安裝檔，避免一直堆積
-            CleanupService.DeleteMatching(Path.GetTempPath(), CleanupService.SetupFilePattern);
-            var path = Path.Combine(Path.GetTempPath(), $"PasswordKeeper-Setup-{info.Version}.exe");
+            // 先清掉先前（例如失敗或中斷的更新）遺留的檔案
+            TryDeleteDirectory(DownloadFolder);
+            Directory.CreateDirectory(DownloadFolder);
+            var zipPath = Path.Combine(DownloadFolder, $"PasswordKeeper-{info.Version}.zip");
+            var extractDir = Path.Combine(DownloadFolder, info.Version.ToString());
 
             using (var resp = await Http.GetAsync(info.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
             {
                 resp.EnsureSuccessStatusCode();
                 var total = resp.Content.Headers.ContentLength ?? info.Size;
                 await using var src = await resp.Content.ReadAsStreamAsync();
-                await using var dst = File.Create(path);
+                await using var dst = File.Create(zipPath);
                 var buf = new byte[81920];
                 long done = 0;
                 int last = -1, n;
@@ -88,7 +103,84 @@ namespace password.Services
                 }
             }
 
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractDir));
+            if (!File.Exists(Path.Combine(extractDir, ManifestName)))
+                throw new FileNotFoundException(Loc.T("update_bad_package"), ManifestName);
+
+            // ClickOnce 會記住「從哪個資料夾安裝的」，從別的位置安裝同一個程式會被拒絕。
+            // 所以把新版放回當初安裝的同一個資料夾，再從那裡執行，ClickOnce 就會當成一般升級。
+            var installDir = FindInstallSourceFolder() ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PasswordKeeper-Setup");
+            await Task.Run(() => ReplaceInstallSource(extractDir, installDir));
+
+            var manifest = Path.Combine(installDir, ManifestName);
+            Process.Start(new ProcessStartInfo(manifest) { UseShellExecute = true, WorkingDirectory = installDir });
+        }
+
+        private const string ManifestName = "PasswordKeeper.application";
+
+        /// <summary>
+        /// 找出當初安裝時用的 PasswordKeeper.application 所在資料夾：
+        /// 先看 ClickOnce 提供的環境變數，再看開始功能表捷徑（.appref-ms 內記錄了安裝來源）。
+        /// </summary>
+        private static string? FindInstallSourceFolder()
+        {
+            foreach (var name in new[] { "ClickOnce_UpdateLocation", "ClickOnce_ActivationUri" })
+            {
+                var dir = FolderFromManifestUri(Environment.GetEnvironmentVariable(name));
+                if (dir != null) return dir;
+            }
+
+            try
+            {
+                var programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                foreach (var file in Directory.EnumerateFiles(programs, "*.appref-ms", SearchOption.AllDirectories))
+                {
+                    // 內容格式：file:///C:/.../PasswordKeeper.application#PasswordKeeper.application, Culture=...
+                    var text = File.ReadAllText(file);
+                    if (!text.Contains(ManifestName, StringComparison.OrdinalIgnoreCase)) continue;
+                    var dir = FolderFromManifestUri(text.Split('#')[0].Trim().Trim('\0', '\uFEFF'));
+                    if (dir != null) return dir;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            return null;
+        }
+
+        /// <summary>只接受本機（或網路芳鄰）路徑的 .application；網址或不存在的磁碟回傳 null。</summary>
+        private static string? FolderFromManifestUri(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !uri.IsFile) return null;
+            var dir = Path.GetDirectoryName(uri.LocalPath);
+            if (dir == null || !Directory.Exists(Path.GetPathRoot(dir))) return null;
+            return dir;
+        }
+
+        /// <summary>
+        /// 用新版安裝包取代安裝來源資料夾的內容：只動 ClickOnce 自己的檔案
+        /// （setup.exe、PasswordKeeper.application、Application Files\PasswordKeeper_*），其他檔案不碰。
+        /// </summary>
+        private static void ReplaceInstallSource(string from, string to)
+        {
+            Directory.CreateDirectory(to);
+            var oldVersions = Path.Combine(to, "Application Files");
+            if (Directory.Exists(oldVersions))
+                foreach (var d in Directory.EnumerateDirectories(oldVersions, "PasswordKeeper_*"))
+                    TryDeleteDirectory(d);
+
+            foreach (var src in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+            {
+                var dst = Path.Combine(to, Path.GetRelativePath(from, src));
+                Directory.CreateDirectory(Path.GetDirectoryName(dst)!);
+                File.Copy(src, dst, overwrite: true);
+            }
+        }
+
+        internal static void TryDeleteDirectory(string path)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* 被占用，下次再清 */ }
         }
     }
 }
