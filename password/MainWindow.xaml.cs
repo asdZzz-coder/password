@@ -14,14 +14,18 @@ namespace password
         private readonly ObservableCollection<AccountEntry> _entries;
         private readonly ICollectionView _view;
         private readonly UpdateService _updater = new();
+        private readonly ObservableCollection<string> _formLinks = new();
 
         public MainWindow()
         {
             InitializeComponent();
+            // 小螢幕（例如筆電）上不要讓視窗高度超出可用範圍
+            Height = Math.Min(Height, SystemParameters.WorkArea.Height - 20);
             _entries = new ObservableCollection<AccountEntry>(DataStore.Load());
             _view = CollectionViewSource.GetDefaultView(_entries);
             _view.SortDescriptions.Add(new SortDescription(nameof(AccountEntry.AppName), ListSortDirection.Ascending));
             EntryList.ItemsSource = _view;
+            LinksList.ItemsSource = _formLinks;
             UpdateStatus();
         }
 
@@ -81,7 +85,8 @@ namespace password
                 : o => o is AccountEntry a &&
                        (a.AppName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
                         a.Username.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                        a.Note.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+                        a.Note.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                        a.LinkedApps.Any(l => l.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
         }
 
         private void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -96,6 +101,9 @@ namespace password
             UserBox.Text = a.Username;
             SetPassword(a.Password);
             NoteBox.Text = a.Note;
+            LinkBox.Clear();
+            _formLinks.Clear();
+            foreach (var l in a.LinkedApps) _formLinks.Add(l);
         }
 
         private void ClearForm()
@@ -104,6 +112,36 @@ namespace password
             UserBox.Clear();
             SetPassword("");
             NoteBox.Clear();
+            LinkBox.Clear();
+            _formLinks.Clear();
+        }
+
+        // ---------- 已連結的 App（條列清單） ----------
+
+        private void AddLink_Click(object sender, RoutedEventArgs e) => AddPendingLink();
+
+        private void LinkBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Enter) return;
+            AddPendingLink();
+            e.Handled = true;
+        }
+
+        /// <summary>把輸入框裡的文字加入清單；重複（不分大小寫）的略過。</summary>
+        private void AddPendingLink()
+        {
+            var name = LinkBox.Text.Trim();
+            if (name.Length == 0) return;
+            if (!_formLinks.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase)))
+                _formLinks.Add(name);
+            LinkBox.Clear();
+            LinkBox.Focus();
+        }
+
+        private void RemoveLink_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: string name })
+                _formLinks.Remove(name);
         }
 
         // ---------- 密碼欄位（PasswordBox / TextBox 切換） ----------
@@ -141,12 +179,14 @@ namespace password
                 MessageBox.Show("請輸入 App 名稱。", "提示");
                 return null;
             }
+            AddPendingLink(); // 輸入框裡打了字但還沒按「加入」的，一併存起來
             return new AccountEntry
             {
                 AppName = AppBox.Text.Trim(),
                 Username = UserBox.Text.Trim(),
                 Password = GetPassword(),
                 Note = NoteBox.Text,
+                LinkedApps = _formLinks.ToList(),
             };
         }
 
@@ -173,6 +213,7 @@ namespace password
             selected.Username = edited.Username;
             selected.Password = edited.Password;
             selected.Note = edited.Note;
+            selected.LinkedApps = edited.LinkedApps;
             PersistAndRefresh();
         }
 
@@ -185,6 +226,33 @@ namespace password
             _entries.Remove(selected);
             ClearForm();
             PersistAndRefresh();
+        }
+
+        private void DeleteAll_Click(object sender, RoutedEventArgs e)
+        {
+            int count = _entries.Count;
+            if (count == 0)
+            {
+                MessageBox.Show("目前沒有任何資料可以清除。", "清除全部資料");
+                return;
+            }
+
+            // 兩段確認，且預設按鈕都是「否」，避免手滑按 Enter 就刪掉
+            var first = MessageBox.Show(
+                $"即將刪除全部 {count} 筆帳號資料。\n\n建議先用「匯出 Excel」備份。\n\n確定要繼續嗎？",
+                "清除全部資料（1/2）", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (first != MessageBoxResult.Yes) return;
+
+            var second = MessageBox.Show(
+                $"最後確認：真的要永久刪除全部 {count} 筆資料嗎？\n\n刪除後無法復原。",
+                "清除全部資料（2/2）", MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
+            if (second != MessageBoxResult.Yes) return;
+
+            _entries.Clear();
+            SearchBox.Clear();
+            ClearForm();
+            PersistAndRefresh();
+            StatusText.Text = $"已清除全部資料（共 {count} 筆）";
         }
 
         private void CopyPwd_Click(object sender, RoutedEventArgs e)

@@ -6,7 +6,7 @@ namespace password.Services
 {
     public static class ExcelService
     {
-        private static readonly string[] Headers = { "App", "帳號", "密碼", "備註" };
+        private static readonly string[] Headers = { "App", "帳號", "密碼", "備註", "連結的 App" };
 
         public static void Export(IEnumerable<AccountEntry> entries, string path)
         {
@@ -24,6 +24,9 @@ namespace password.Services
                 ws.Cell(r, 2).SetValue(Escape(e.Username));
                 ws.Cell(r, 3).SetValue(Escape(e.Password));
                 ws.Cell(r, 4).SetValue(Escape(e.Note));
+                // 連結的 App 一個一行，放在同一格
+                ws.Cell(r, 5).SetValue(Escape(string.Join("\n", e.LinkedApps)));
+                ws.Cell(r, 5).Style.Alignment.WrapText = true;
                 r++;
             }
             ws.Columns().AdjustToContents();
@@ -49,6 +52,11 @@ namespace password.Services
                     Username = row.Cell(2).GetFormattedString().Trim(),
                     Password = row.Cell(3).GetFormattedString(),
                     Note = row.Cell(4).GetFormattedString(),
+                    // 舊版匯出檔沒有第 5 欄，此時為空清單；換行或「、」都視為分隔
+                    LinkedApps = row.Cell(5).GetFormattedString()
+                        .Split(new[] { '\r', '\n', '、' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
                 };
                 if (entry.AppName.Length == 0 && entry.Username.Length == 0 && entry.Password.Length == 0)
                     continue;

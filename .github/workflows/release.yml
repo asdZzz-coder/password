@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          vpk pack --packId PasswordKeeper --packVersion "$VERSION" --packDir publish --mainExe PasswordKeeper.exe --packTitle "帳號密碼紀錄"
+          vpk pack --packId PasswordKeeper --packVersion "$VERSION" --packDir publish --mainExe PasswordKeeper.exe --icon password/Assets/app.ico --packTitle "帳號密碼紀錄"
 
       - name: Upload to GitHub Release
         shell: bash
