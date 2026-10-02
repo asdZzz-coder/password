@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          dotnet publish password/password.csproj -c Release -r win-x64 --self-contained -o publish /p:Version=$VERSION
+          dotnet publish password/password.csproj -c Release -r win-x64 --self-contained -o publish -p:Version=$VERSION
 
       - name: Pack
         shell: bash
