@@ -281,14 +281,17 @@ namespace password
             StatusText.Text = Loc.T("delall_done", count);
         }
 
-        private void CopyPwd_Click(object sender, RoutedEventArgs e)
+        private void CopyUser_Click(object sender, RoutedEventArgs e) => CopyToClipboard(UserBox.Text, "copy_user_done");
+
+        private void CopyPwd_Click(object sender, RoutedEventArgs e) => CopyToClipboard(GetPassword(), "copy_done");
+
+        private void CopyToClipboard(string text, string doneKey)
         {
-            var pwd = GetPassword();
-            if (pwd.Length == 0) return;
+            if (text.Length == 0) return;
             try
             {
-                Clipboard.SetText(pwd);
-                StatusText.Text = Loc.T("copy_done");
+                Clipboard.SetText(text);
+                StatusText.Text = Loc.T(doneKey);
             }
             catch (System.Runtime.InteropServices.COMException)
             {

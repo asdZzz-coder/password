@@ -220,16 +220,24 @@
                             <TextBox x:Name="AppBox" Margin="0,0,0,14"/>
 
                             <TextBlock Text="{DynamicResource S_lbl_user}" Style="{StaticResource FieldLabel}"/>
-                            <TextBox x:Name="UserBox" Margin="0,0,0,14"/>
+                            <!-- 帳號欄右側的複製按鈕 -->
+                            <Grid Margin="0,0,0,14">
+                                <TextBox x:Name="UserBox" Padding="12,8,42,8"/>
+                                <Button Content="&#xE8C8;" Style="{StaticResource FieldIconButton}" ToolTip="{DynamicResource S_copy_user_tip}"
+                                        HorizontalAlignment="Right" Margin="0,0,4,0" Click="CopyUser_Click"/>
+                            </Grid>
 
                             <TextBlock Text="{DynamicResource S_lbl_pwd}" Style="{StaticResource FieldLabel}"/>
-                            <!-- 密碼欄右側的眼睛按鈕切換顯示 / 隱藏 -->
+                            <!-- 密碼欄右側：眼睛（顯示 / 隱藏）+ 複製 -->
                             <Grid Margin="0,0,0,14">
-                                <PasswordBox x:Name="PwdBox" Padding="12,8,42,8"/>
-                                <TextBox x:Name="PwdText" Padding="12,8,42,8" Visibility="Collapsed"/>
-                                <ToggleButton x:Name="ShowPwd" Style="{StaticResource EyeToggle}" ToolTip="{DynamicResource S_show_pwd}"
-                                              HorizontalAlignment="Right" Margin="0,0,4,0"
-                                              Checked="ShowPwd_Changed" Unchecked="ShowPwd_Changed"/>
+                                <PasswordBox x:Name="PwdBox" Padding="12,8,76,8"/>
+                                <TextBox x:Name="PwdText" Padding="12,8,76,8" Visibility="Collapsed"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
+                                    <ToggleButton x:Name="ShowPwd" Style="{StaticResource EyeToggle}" ToolTip="{DynamicResource S_show_pwd}"
+                                                  Checked="ShowPwd_Changed" Unchecked="ShowPwd_Changed"/>
+                                    <Button Content="&#xE8C8;" Style="{StaticResource FieldIconButton}" ToolTip="{DynamicResource S_copy_pwd_tip}"
+                                            Margin="2,0,0,0" Click="CopyPwd_Click"/>
+                                </StackPanel>
                             </Grid>
 
                             <TextBlock Text="{DynamicResource S_lbl_note}" Style="{StaticResource FieldLabel}"/>
@@ -296,26 +304,20 @@
                     </ScrollViewer>
 
                     <!-- 操作按鈕固定在卡片底部，表單再長也不會被捲出畫面 -->
-                    <UniformGrid Grid.Row="2" Columns="2" Rows="2" Margin="0,16,0,0">
-                        <Button Style="{StaticResource PrimaryButton}" Margin="0,0,5,10" Padding="14,10" Click="Add_Click">
+                    <UniformGrid Grid.Row="2" Columns="3" Rows="1" Margin="0,16,0,0">
+                        <Button Style="{StaticResource PrimaryButton}" Margin="0,0,5,0" Padding="10,10" Click="Add_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE710;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"/>
                                 <TextBlock Text="{DynamicResource S_btn_new}"/>
                             </StackPanel>
                         </Button>
-                        <Button Margin="5,0,0,10" Padding="14,10" Click="Save_Click">
+                        <Button Margin="5,0,5,0" Padding="10,10" Click="Save_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE74E;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"/>
                                 <TextBlock Text="{DynamicResource S_btn_save}"/>
                             </StackPanel>
                         </Button>
-                        <Button Margin="0,0,5,0" Padding="14,10" Click="CopyPwd_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8C8;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"/>
-                                <TextBlock Text="{DynamicResource S_btn_copy}"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource DangerButton}" Margin="5,0,0,0" Padding="14,10" Click="Delete_Click">
+                        <Button Style="{StaticResource DangerButton}" Margin="5,0,0,0" Padding="10,10" Click="Delete_Click">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE74D;" Style="{StaticResource Icon}" FontSize="13" Margin="0,0,8,0"/>
                                 <TextBlock Text="{DynamicResource S_btn_delete}"/>
