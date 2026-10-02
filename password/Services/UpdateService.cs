@@ -159,7 +159,7 @@ namespace password.Services
 
         /// <summary>
         /// 用新版安裝包取代安裝來源資料夾的內容：只動 ClickOnce 自己的檔案
-        /// （setup.exe、PasswordKeeper.application、Application Files\PasswordKeeper_*），其他檔案不碰。
+        /// （PasswordKeeper.application、安裝.cmd、Application Files\PasswordKeeper_*），其他檔案不碰。
         /// </summary>
         private static void ReplaceInstallSource(string from, string to)
         {

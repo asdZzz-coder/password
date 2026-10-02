@@ -20,7 +20,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # ClickOnce 的 setup.exe 與 manifest 需要 .NET Framework 版的 MSBuild（Visual Studio 內建）
+      # ClickOnce 的 manifest 需要 .NET Framework 版的 MSBuild（Visual Studio 內建）
       - uses: microsoft/setup-msbuild@v2
 
       - name: Publish (ClickOnce)
@@ -38,9 +38,11 @@ jobs:
       - name: Zip installer
         shell: pwsh
         run: |
-          # 只打包 ClickOnce 安裝需要的檔案：setup.exe、PasswordKeeper.application、Application Files
-          $items = @('clickonce\setup.exe', 'clickonce\PasswordKeeper.application', 'clickonce\Application Files')
-          foreach ($i in $items) { if (-not (Test-Path $i)) { throw "missing $i" } }
+          # 打包 ClickOnce 安裝需要的檔案 + 安裝.cmd（先複製到固定資料夾再安裝，
+          # 避免 ClickOnce「已從其他位置安裝」的錯誤；不放 setup.exe，以免從別的位置安裝）
+          Copy-Item -LiteralPath 'installer\安裝.cmd' -Destination 'clickonce\安裝.cmd'
+          $items = @('clickonce\安裝.cmd', 'clickonce\PasswordKeeper.application', 'clickonce\Application Files')
+          foreach ($i in $items) { if (-not (Test-Path -LiteralPath $i)) { throw "missing $i" } }
           Compress-Archive -Path $items -DestinationPath PasswordKeeper-ClickOnce.zip
           Get-Item PasswordKeeper-ClickOnce.zip | Select-Object Name, Length
 
@@ -49,5 +51,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $notes = "下載 PasswordKeeper-ClickOnce.zip，解壓縮後執行 setup.exe 安裝。`n`nDownload PasswordKeeper-ClickOnce.zip, extract it, and run setup.exe."
+          $notes = "下載 PasswordKeeper-ClickOnce.zip，解壓縮後執行「安裝.cmd」。已安裝的電腦開啟程式時會詢問是否更新。`n`nDownload PasswordKeeper-ClickOnce.zip, extract it, and run 安裝.cmd. Installed copies will offer the update when opened."
           gh release create "${{ github.ref_name }}" PasswordKeeper-ClickOnce.zip --title "${{ github.ref_name }}" --notes $notes
