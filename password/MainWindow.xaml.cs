@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Interop;
+using System.Windows.Media;
 using Microsoft.Win32;
 using password.Models;
 using password.Services;
@@ -31,6 +34,22 @@ namespace password
         }
 
         private void Lang_Click(object sender, RoutedEventArgs e) => Loc.Toggle();
+
+        // ---------- Windows 11：標題列底色與視窗背景同色，看起來是一整片 ----------
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+        private const int DWMWA_CAPTION_COLOR = 35;
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            var bg = ((SolidColorBrush)FindResource("AppBgBrush")).Color;
+            int colorRef = bg.R | (bg.G << 8) | (bg.B << 16); // COLORREF = 0x00BBGGRR
+            // Windows 10 不支援此屬性，呼叫會回傳錯誤碼，直接忽略即可
+            DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
+        }
 
         // ---------- 啟動時檢查更新（詢問使用者） ----------
 
