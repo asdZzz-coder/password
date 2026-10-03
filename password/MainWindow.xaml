@@ -110,6 +110,12 @@
                         </StackPanel>
                     </Button>
                     <Border Width="1" Margin="4,8" Background="{StaticResource LineBrush}"/>
+                    <Button x:Name="ShortcutButton" Style="{StaticResource GhostButton}" ToolTip="{DynamicResource S_btn_shortcut_tip}" Click="Shortcut_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7F4;" Style="{StaticResource Icon}" Margin="0,0,8,0"/>
+                            <TextBlock Text="{DynamicResource S_btn_shortcut}"/>
+                        </StackPanel>
+                    </Button>
                     <Button Style="{StaticResource GhostButton}" Click="CheckUpdate_Click">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE895;" Style="{StaticResource Icon}" Margin="0,0,8,0"/>

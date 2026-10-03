@@ -20,6 +20,10 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # 自動測試沒過就不發佈
+      - name: Test
+        run: dotnet test password.Tests/password.Tests.csproj
+
       # ClickOnce 的 manifest 需要 .NET Framework 版的 MSBuild（Visual Studio 內建）
       - uses: microsoft/setup-msbuild@v2
 

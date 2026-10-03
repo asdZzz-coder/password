@@ -77,6 +77,8 @@ namespace password.Services
             ("btn_export", "匯出 Excel", "Export Excel"),
             ("btn_import", "匯入 Excel", "Import Excel"),
             ("btn_check_update", "檢查更新", "Check for Updates"),
+            ("btn_shortcut", "桌面捷徑", "Shortcut"),
+            ("btn_shortcut_tip", "在桌面建立程式捷徑", "Create a desktop shortcut"),
             ("search_placeholder", "搜尋 App、帳號、備註…", "Search app, username, notes…"),
             ("empty_list", "還沒有資料\n從右邊新增第一筆吧", "No entries yet\nAdd your first one on the right"),
             ("links_tooltip", "已連結的 App 數量", "Number of linked apps"),
@@ -112,7 +114,12 @@ namespace password.Services
             ("copy_busy", "剪貼簿目前被其他程式占用，請稍後再試。", "The clipboard is in use by another program. Please try again."),
             ("save_title", "儲存", "Save"),
             ("save_failed", "儲存失敗，資料尚未寫入硬碟：{0}", "Save failed — data was not written to disk: {0}"),
-            ("already_running", "帳號密碼紀錄已經在執行中。", "Password Keeper is already running."),
+            ("shortcut_title", "桌面捷徑", "Desktop Shortcut"),
+            ("shortcut_done", "已在桌面建立捷徑", "Desktop shortcut created"),
+            ("shortcut_no_source", "找不到安裝版的開始功能表捷徑，請重新執行「安裝.cmd」後再試。",
+                                   "The installed app's Start menu shortcut was not found. Please run \"安裝.cmd\" again and retry."),
+            ("shortcut_failed", "建立桌面捷徑失敗：{0}", "Failed to create the desktop shortcut: {0}"),
+            ("already_running","帳號密碼紀錄已經在執行中。", "Password Keeper is already running."),
 
             // ----- 清除全部資料 -----
             ("delall_title", "清除全部資料", "Delete All Data"),

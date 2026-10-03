@@ -61,6 +61,24 @@ namespace password
             await CheckForUpdateAsync(manual: false);
         }
 
+        private void Shortcut_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (DesktopShortcutService.Create(_updater.IsInstalled) == ShortcutResult.SourceNotFound)
+                {
+                    MessageBox.Show(Loc.T("shortcut_no_source"), Loc.T("shortcut_title"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                StatusText.Text = Loc.T("shortcut_done");
+                MessageBox.Show(Loc.T("shortcut_done"), Loc.T("shortcut_title"), MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or COMException)
+            {
+                MessageBox.Show(Loc.T("shortcut_failed", ex.Message), Loc.T("shortcut_title"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
             await CheckForUpdateAsync(manual: true);
