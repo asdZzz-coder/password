@@ -8,7 +8,8 @@ namespace password
         [STAThread]
         public static void Main(string[] args)
         {
-            Loc.Load(); // 讀取使用者選的介面語言
+            Loc.Load();          // 讀取使用者選的介面語言
+            ThemeService.Load(); // 讀取使用者選的主題（跟隨系統 / 淺色 / 深色）
 
             // 只允許開一個視窗，避免兩個視窗互相覆蓋對方存的資料
             using var mutex = new Mutex(true, @"Local\PasswordKeeper.SingleInstance", out bool isFirst);
@@ -24,6 +25,8 @@ namespace password
             var app = new App();
             app.InitializeComponent();
             Loc.Apply(); // 必須在 App.xaml 載入之後，字串資源才不會被覆蓋
+            ThemeService.Apply();
+            ThemeService.WatchSystemTheme();
             app.Run();
         }
     }

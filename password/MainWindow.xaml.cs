@@ -31,24 +31,70 @@ namespace password
             LinksList.ItemsSource = _formLinks;
             UpdateStatus();
             Loc.LanguageChanged += UpdateStatus; // 切換語言時重新整理標題與狀態列
+            Loc.LanguageChanged += UpdateThemeButton;
+            ThemeService.ThemeChanged += OnThemeChanged; // 切換主題（或系統深淺色改變）時更新標題列與按鈕
+            UpdateThemeButton();
         }
 
         private void Lang_Click(object sender, RoutedEventArgs e) => Loc.Toggle();
+
+        // ---------- 主題：跟隨系統 / 淺色 / 深色 ----------
+
+        private void Theme_Click(object sender, RoutedEventArgs e)
+        {
+            ThemeService.Cycle();
+            StatusText.Text = Loc.T("theme_changed", ThemeName(ThemeService.Mode));
+        }
+
+        private static string ThemeName(AppTheme mode) => Loc.T(mode switch
+        {
+            AppTheme.Light => "theme_light",
+            AppTheme.Dark => "theme_dark",
+            _ => "theme_system",
+        });
+
+        private void OnThemeChanged()
+        {
+            UpdateThemeButton();
+            ApplyTitleBar();
+        }
+
+        private void UpdateThemeButton()
+        {
+            ThemeIcon.Text = ThemeService.Mode switch
+            {
+                AppTheme.Light => "", // 太陽
+                AppTheme.Dark => "",  // 月亮
+                _ => "",               // 電腦（跟隨系統）
+            };
+            ThemeButton.ToolTip = Loc.T("theme_tip", ThemeName(ThemeService.Mode));
+        }
 
         // ---------- Windows 11：標題列底色與視窗背景同色，看起來是一整片 ----------
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
         private const int DWMWA_CAPTION_COLOR = 35;
 
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
+            ApplyTitleBar();
+        }
+
+        private void ApplyTitleBar()
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return; // 視窗還沒建立，OnSourceInitialized 時會再套用
+            // 深色時標題文字與縮小/關閉按鈕改成淺色
+            int dark = ThemeService.IsDark ? 1 : 0;
+            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
             var bg = ((SolidColorBrush)FindResource("AppBgBrush")).Color;
             int colorRef = bg.R | (bg.G << 8) | (bg.B << 16); // COLORREF = 0x00BBGGRR
-            // Windows 10 不支援此屬性，呼叫會回傳錯誤碼，直接忽略即可
-            DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
+            // Windows 10 不支援這些屬性，呼叫會回傳錯誤碼，直接忽略即可
+            DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
         }
 
         // ---------- 啟動時檢查更新（詢問使用者） ----------
