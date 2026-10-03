@@ -18,6 +18,9 @@ namespace password
                 return;
             }
 
+            // 安裝版使用固定的工作列身分，更新後新版視窗才會跟工作列釘選合併
+            if (new UpdateService().IsInstalled) DesktopShortcutService.ApplyAppId();
+
             var app = new App();
             app.InitializeComponent();
             Loc.Apply(); // 必須在 App.xaml 載入之後，字串資源才不會被覆蓋

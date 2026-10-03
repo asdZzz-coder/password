@@ -35,7 +35,7 @@ namespace password.Tests
         }
 
         private string[] DesktopFiles() =>
-            Directory.Exists(Desktop) ? Directory.GetFiles(Desktop).Select(Path.GetFileName).ToArray()! : [];
+            Directory.Exists(Desktop) ? Directory.GetFiles(Desktop).Select(f => Path.GetFileName(f)).ToArray() : [];
 
         // ---------- 按鈕：安裝版 ----------
 
@@ -114,7 +114,7 @@ namespace password.Tests
             Assert.Equal(ShortcutResult.Created, result);
             var lnk = Path.Combine(Desktop, DesktopShortcutService.DevShortcutName);
             Assert.True(File.Exists(lnk));
-            Assert.Equal(exe, DesktopShortcutService.ReadLinkTarget(lnk), ignoreCase: true);
+            Assert.Equal(exe, DesktopShortcutService.ReadLink(lnk).Target, ignoreCase: true);
         }
 
         // ---------- 安裝版第一次開啟時自動建立（只做一次） ----------
@@ -152,6 +152,123 @@ namespace password.Tests
             DesktopShortcutService.EnsureOnce(true, DataDir, Desktop, Programs);
 
             Assert.Equal([AppRefName], DesktopFiles());
+        }
+
+        // ---------- 更新後整理捷徑 ----------
+
+        private string Taskbar => Path.Combine(_root, "TaskBar");
+
+        /// <summary>在模擬的 ClickOnce 快取（Apps\2.0）放一個某版本的 exe。</summary>
+        private string FakeInstalledExe(string versionFolder)
+        {
+            var exe = Path.Combine(_root, "Apps", "2.0", "AB12CD34.EFG", versionFolder, "PasswordKeeper.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(exe)!);
+            File.WriteAllBytes(exe, [0x4D, 0x5A]);
+            return exe;
+        }
+
+        private static void WriteAppRef(string path, DateTime lastWrite, string content = AppRefContent)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, content, Encoding.Unicode);
+            File.SetLastWriteTime(path, lastWrite);
+        }
+
+        [Fact]
+        public void TidyUp_StartMenuDuplicate_KeepsOnlyNewest()
+        {
+            var folder = Path.Combine(Programs, "asdZzz-coder", "帳號密碼紀錄");
+            var old = Path.Combine(folder, "帳號密碼紀錄.appref-ms");
+            var added = Path.Combine(folder, "帳號密碼紀錄 - 1 .appref-ms"); // 更新時 ClickOnce 多放的
+            WriteAppRef(old, DateTime.Now.AddDays(-1));
+            WriteAppRef(added, DateTime.Now);
+            var other = Path.Combine(Programs, "asdZzz-coder", "簡易記帳", "簡易記帳.appref-ms");
+            WriteAppRef(other, DateTime.Now.AddDays(-2), "file:///C:/x/Ledger.application#Ledger.application");
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, FakeInstalledExe("v12"));
+
+            Assert.False(File.Exists(old));
+            Assert.True(File.Exists(added));
+            Assert.True(File.Exists(other)); // 別的程式不動
+        }
+
+        [Fact]
+        public void TidyUp_DesktopDuplicate_KeepsOnlyNewest()
+        {
+            WriteAppRef(Path.Combine(Desktop, "帳號密碼紀錄.appref-ms"), DateTime.Now);
+            WriteAppRef(Path.Combine(Desktop, "帳號密碼紀錄 - 1 .appref-ms"), DateTime.Now.AddHours(-3));
+            WriteAppRef(Path.Combine(Desktop, "簡易記帳.appref-ms"), DateTime.Now.AddDays(-2), "file:///C:/x/Ledger.application#Ledger.application");
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, FakeInstalledExe("v12"));
+
+            Assert.Equal(["帳號密碼紀錄.appref-ms", "簡易記帳.appref-ms"], DesktopFiles().Order().ToArray());
+        }
+
+        [Fact]
+        public void TidyUp_SingleShortcuts_AreLeftAlone()
+        {
+            var desktopShortcut = Path.Combine(Desktop, "我的密碼.appref-ms");
+            WriteAppRef(desktopShortcut, DateTime.Now.AddDays(-5));
+            var source = CreateStartMenuShortcut();
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, FakeInstalledExe("v12"));
+
+            Assert.True(File.Exists(desktopShortcut));
+            Assert.True(File.Exists(source));
+        }
+
+        [Fact]
+        public void TidyUp_TaskbarPinToOldVersion_IsRetargetedToCurrent()
+        {
+            var oldExe = FakeInstalledExe("v11");
+            var currentExe = FakeInstalledExe("v12");
+            Directory.CreateDirectory(Taskbar);
+            var pin = Path.Combine(Taskbar, "帳號密碼紀錄.lnk");
+            DesktopShortcutService.WriteLink(pin, oldExe, appId: null, existing: false);
+            var otherExe = Path.Combine(_root, "Other", "Other.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(otherExe)!);
+            File.WriteAllBytes(otherExe, [0x4D, 0x5A]);
+            var otherPin = Path.Combine(Taskbar, "Other.lnk");
+            DesktopShortcutService.WriteLink(otherPin, otherExe, appId: null, existing: false);
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, currentExe);
+
+            var (target, appId) = DesktopShortcutService.ReadLink(pin);
+            Assert.Equal(currentExe, target, ignoreCase: true);
+            Assert.Equal(DesktopShortcutService.AppId, appId);
+            Assert.Equal(["Other.lnk", "帳號密碼紀錄.lnk"], Directory.GetFiles(Taskbar).Select(f => Path.GetFileName(f)).Order(StringComparer.Ordinal).ToArray());
+            var (otherTarget, otherAppId) = DesktopShortcutService.ReadLink(otherPin);
+            Assert.Equal(otherExe, otherTarget, ignoreCase: true); // 別的程式的釘選不動
+            Assert.Null(otherAppId);
+        }
+
+        [Fact]
+        public void TidyUp_TaskbarPinAlreadyCurrent_IsNotRewritten()
+        {
+            var currentExe = FakeInstalledExe("v12");
+            Directory.CreateDirectory(Taskbar);
+            var pin = Path.Combine(Taskbar, "帳號密碼紀錄.lnk");
+            DesktopShortcutService.WriteLink(pin, currentExe, DesktopShortcutService.AppId, existing: false);
+            var stamp = DateTime.Now.AddDays(-1);
+            File.SetLastWriteTime(pin, stamp);
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, currentExe);
+
+            Assert.Equal(stamp, File.GetLastWriteTime(pin));
+        }
+
+        [Fact]
+        public void TidyUp_DevBuildExe_DoesNotTouchPins()
+        {
+            var oldExe = FakeInstalledExe("v11");
+            Directory.CreateDirectory(Taskbar);
+            var pin = Path.Combine(Taskbar, "帳號密碼紀錄.lnk");
+            DesktopShortcutService.WriteLink(pin, oldExe, appId: null, existing: false);
+            var devExe = Path.Combine(_root, "bin", "PasswordKeeper.exe"); // 不在 Apps\2.0
+
+            DesktopShortcutService.TidyUp(Desktop, Programs, Taskbar, devExe);
+
+            Assert.Equal(oldExe, DesktopShortcutService.ReadLink(pin).Target, ignoreCase: true);
         }
 
         [Fact]
