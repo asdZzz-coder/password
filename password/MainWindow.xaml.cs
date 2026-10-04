@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Win32;
 using password.Models;
@@ -19,18 +18,29 @@ namespace password
         private readonly UpdateService _updater = new();
         private readonly ObservableCollection<string> _formLinks = new();
 
+        // 資料夾：清單（含空資料夾）與左側目前選的篩選
+        private List<string> _folders;
+        private FolderFilter _folderFilter = FolderFilter.All;
+        private bool _rebuildingFolders;
+
         public MainWindow()
         {
             InitializeComponent();
-            // 小螢幕（例如筆電）上不要讓視窗高度超出可用範圍
+            // 小螢幕（例如筆電）上不要讓視窗超出可用範圍
             Height = Math.Min(Height, SystemParameters.WorkArea.Height - 20);
+            Width = Math.Min(Width, SystemParameters.WorkArea.Width - 20);
             _entries = new ObservableCollection<AccountEntry>(DataStore.Load());
+            _folders = FolderService.Merge(DataStore.LoadFolders(), _entries);
             _view = CollectionViewSource.GetDefaultView(_entries);
             _view.SortDescriptions.Add(new SortDescription(nameof(AccountEntry.AppName), ListSortDirection.Ascending));
             EntryList.ItemsSource = _view;
             LinksList.ItemsSource = _formLinks;
+            RebuildFolders();
+            ApplyFilter();
             UpdateStatus();
             Loc.LanguageChanged += UpdateStatus; // 切換語言時重新整理標題與狀態列
+            Loc.LanguageChanged += RebuildFolders; // 「所有項目」「無資料夾」跟著換語言
+            Loc.LanguageChanged += UpdateEmptyHint;
             Loc.LanguageChanged += UpdateThemeButton;
             ThemeService.ThemeChanged += OnThemeChanged; // 切換主題（或系統深淺色改變）時更新標題列與按鈕
             UpdateThemeButton();
@@ -72,30 +82,13 @@ namespace password
 
         // ---------- Windows 11：標題列底色與視窗背景同色，看起來是一整片 ----------
 
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
-
-        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-        private const int DWMWA_CAPTION_COLOR = 35;
-
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
             ApplyTitleBar();
         }
 
-        private void ApplyTitleBar()
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return; // 視窗還沒建立，OnSourceInitialized 時會再套用
-            // 深色時標題文字與縮小/關閉按鈕改成淺色
-            int dark = ThemeService.IsDark ? 1 : 0;
-            DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
-            var bg = ((SolidColorBrush)FindResource("AppBgBrush")).Color;
-            int colorRef = bg.R | (bg.G << 8) | (bg.B << 16); // COLORREF = 0x00BBGGRR
-            // Windows 10 不支援這些屬性，呼叫會回傳錯誤碼，直接忽略即可
-            DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
-        }
+        private void ApplyTitleBar() => WindowTheme.ApplyTitleBar(this);
 
         // ---------- 啟動時檢查更新（詢問使用者） ----------
 
@@ -169,16 +162,190 @@ namespace password
 
         // ---------- 搜尋 / 選取 ----------
 
-        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
+
+        /// <summary>清單只顯示左側選的資料夾裡、符合搜尋文字的帳號。</summary>
+        private void ApplyFilter()
         {
             var keyword = SearchBox.Text.Trim();
-            _view.Filter = keyword.Length == 0
-                ? null
-                : o => o is AccountEntry a &&
-                       (a.AppName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                        a.Username.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                        a.Note.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                        a.LinkedApps.Any(l => l.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
+            var folder = _folderFilter;
+            _view.Filter = o => o is AccountEntry a && folder.Matches(a) &&
+                (keyword.Length == 0 ||
+                 a.AppName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                 a.Username.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                 a.Note.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                 a.LinkedApps.Any(l => l.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
+            UpdateEmptyHint();
+        }
+
+        private void UpdateEmptyHint() =>
+            EmptyText.Text = Loc.T(_entries.Count == 0 ? "empty_list" : "empty_filtered");
+
+        // ---------- 資料夾 ----------
+
+        /// <summary>依目前資料重建左側資料夾清單（含數量）與表單的資料夾下拉選單，並保留原本的選取。</summary>
+        private void RebuildFolders()
+        {
+            var items = new List<FolderItem> { new(FolderFilter.All, Loc.T("folder_all"), _entries.Count) };
+            items.AddRange(_folders.Select(f => new FolderItem(FolderFilter.Of(f), f, _entries.Count(FolderFilter.Of(f).Matches))));
+            items.Add(new FolderItem(FolderFilter.NoFolder, Loc.T("folder_none"), _entries.Count(FolderFilter.NoFolder.Matches)));
+
+            var current = items.FirstOrDefault(i => i.Filter.SameAs(_folderFilter)) ?? items[0];
+            _rebuildingFolders = true;
+            FolderList.ItemsSource = items;
+            FolderList.SelectedItem = current;
+            _rebuildingFolders = false;
+            if (current.Filter != _folderFilter) // 原本選的資料夾被刪掉了 → 回到「所有項目」
+            {
+                _folderFilter = current.Filter;
+                ApplyFilter();
+            }
+
+            var formFolder = FolderService.Canonical(_folders, FolderBox.SelectedValue as string);
+            FolderBox.ItemsSource = FolderOptions();
+            FolderBox.SelectedValue = formFolder;
+        }
+
+        private List<FolderOption> FolderOptions() =>
+            _folders.Select(f => new FolderOption(f, f)).Prepend(new FolderOption("", Loc.T("folder_none"))).ToList();
+
+        /// <summary>新增帳號時預設放進左側目前選的資料夾。</summary>
+        private string DefaultFolder => _folderFilter.Kind == FolderFilterKind.Folder ? _folderFilter.Name : "";
+
+        private void SetFormFolder(string folder) => FolderBox.SelectedValue = FolderService.Canonical(_folders, folder);
+
+        private void FolderList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_rebuildingFolders || FolderList.SelectedItem is not FolderItem item) return;
+            bool hadSelection = EntryList.SelectedItem != null;
+            _folderFilter = item.Filter;
+            ApplyFilter();
+            if (EntryList.SelectedItem != null) return;
+            // 原本選的帳號不在這個資料夾 → 清空表單，準備在這個資料夾新增
+            if (hadSelection) ClearForm();
+            else SetFormFolder(DefaultFolder);
+        }
+
+        private string? FolderNameMessage(string name, string? renaming = null) =>
+            FolderService.Validate(name, _folders, renaming) switch
+            {
+                FolderNameError.Empty => Loc.T("folder_err_empty"),
+                FolderNameError.TooLong => Loc.T("folder_err_long", FolderService.MaxNameLength),
+                FolderNameError.Duplicate => Loc.T("folder_err_dup"),
+                _ => null,
+            };
+
+        /// <summary>詢問名稱並建立資料夾；取消則回傳 null。</summary>
+        private string? CreateFolder()
+        {
+            var name = InputDialog.Ask(this, Loc.T("folder_new_title"), Loc.T("folder_name_prompt"), "", n => FolderNameMessage(n));
+            if (name == null) return null;
+            _folders = FolderService.Merge(_folders.Append(name), []);
+            return name;
+        }
+
+        private void NewFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var name = CreateFolder();
+            if (name == null) return;
+            _folderFilter = FolderFilter.Of(name); // 建好就切過去
+            PersistAndRefresh();
+            if (EntryList.SelectedItem == null) SetFormFolder(DefaultFolder); // 接著新增的帳號直接放進這個資料夾
+            StatusText.Text = Loc.T("folder_created", name);
+        }
+
+        private void RenameFolder(string oldName)
+        {
+            var name = InputDialog.Ask(this, Loc.T("folder_rename_title"), Loc.T("folder_name_prompt"), oldName, n => FolderNameMessage(n, oldName));
+            if (name == null || name == oldName) return;
+            bool viewing = _folderFilter.SameAs(FolderFilter.Of(oldName));
+            var formFolder = FolderBox.SelectedValue as string;
+            (_folders, _) = FolderService.Rename(_folders, _entries, oldName, name);
+            if (viewing) _folderFilter = FolderFilter.Of(name);
+            if (FolderService.SameName(formFolder, oldName)) SetFormFolderAfterRefresh(name);
+            PersistAndRefresh();
+            StatusText.Text = Loc.T("folder_renamed", name);
+        }
+
+        private void DeleteFolder(string name)
+        {
+            int count = _entries.Count(FolderFilter.Of(name).Matches);
+            var ok = MessageBox.Show(this, Loc.T("folder_delete_confirm", name, count), Loc.T("folder_delete_tip"),
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            if (ok != MessageBoxResult.Yes) return;
+            (_folders, _) = FolderService.Delete(_folders, _entries, name);
+            PersistAndRefresh();
+            StatusText.Text = Loc.T("folder_deleted", name);
+        }
+
+        // 重新整理後下拉選單才有新名稱，所以先記下來，PersistAndRefresh 重建選單後再選
+        private string? _pendingFormFolder;
+        private void SetFormFolderAfterRefresh(string name) => _pendingFormFolder = name;
+
+        private void RenameFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: FolderItem { IsUserFolder: true } item })
+                RenameFolder(item.Filter.Name);
+        }
+
+        private void DeleteFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: FolderItem { IsUserFolder: true } item })
+                DeleteFolder(item.Filter.Name);
+        }
+
+        /// <summary>從右鍵點到的位置往上找出清單項目（點在空白處則為 null）。</summary>
+        private static T? ItemUnderMouse<T>(ContextMenuEventArgs e) where T : class
+        {
+            for (var d = e.OriginalSource as DependencyObject; d != null; d = VisualTreeHelper.GetParent(d))
+                if (d is ListBoxItem { DataContext: T item }) return item;
+            return null;
+        }
+
+        private static MenuItem MenuEntry(string header, Action onClick, bool isChecked = false, Brush? foreground = null)
+        {
+            var mi = new MenuItem { Header = header, IsChecked = isChecked };
+            if (foreground != null) mi.Foreground = foreground;
+            mi.Click += (_, _) => onClick();
+            return mi;
+        }
+
+        // 資料夾右鍵：重新命名 / 刪除（「所有項目」「無資料夾」沒有選單）
+        private void FolderList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (ItemUnderMouse<FolderItem>(e) is not { IsUserFolder: true } item) { e.Handled = true; return; }
+            var menu = FolderList.ContextMenu;
+            menu.Items.Clear();
+            menu.Items.Add(MenuEntry(Loc.T("folder_rename_tip"), () => RenameFolder(item.Filter.Name)));
+            menu.Items.Add(MenuEntry(Loc.T("folder_delete_tip"), () => DeleteFolder(item.Filter.Name),
+                foreground: (Brush)FindResource("DangerBrush")));
+        }
+
+        // 帳號右鍵：移到資料夾（目前所在的資料夾打勾）
+        private void EntryList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (ItemUnderMouse<AccountEntry>(e) is not { } entry) { e.Handled = true; return; }
+            EntryList.SelectedItem = entry;
+            var menu = EntryList.ContextMenu;
+            menu.Items.Clear();
+            menu.Items.Add(new MenuItem { Header = Loc.T("move_to"), IsEnabled = false, FontSize = 12 });
+            foreach (var option in FolderOptions())
+                menu.Items.Add(MenuEntry(option.Display, () => MoveEntry(entry, option.Name),
+                    isChecked: FolderService.SameName(entry.Folder, option.Name)));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(MenuEntry(Loc.T("move_to_new"), () =>
+            {
+                var name = CreateFolder();
+                if (name != null) MoveEntry(entry, name);
+            }));
+        }
+
+        private void MoveEntry(AccountEntry entry, string folder)
+        {
+            entry.Folder = folder;
+            if (EntryList.SelectedItem == entry) SetFormFolderAfterRefresh(folder);
+            PersistAndRefresh();
+            StatusText.Text = Loc.T("moved_to", entry.AppName, folder.Length == 0 ? Loc.T("folder_none") : folder);
         }
 
         private void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -193,6 +360,7 @@ namespace password
             UserBox.Text = a.Username;
             SetPassword(a.Password);
             NoteBox.Text = a.Note;
+            SetFormFolder(a.Folder);
             LinkBox.Clear();
             _formLinks.Clear();
             foreach (var l in a.LinkedApps) _formLinks.Add(l);
@@ -204,6 +372,7 @@ namespace password
             UserBox.Clear();
             SetPassword("");
             NoteBox.Clear();
+            SetFormFolder(DefaultFolder);
             LinkBox.Clear();
             _formLinks.Clear();
         }
@@ -279,6 +448,7 @@ namespace password
                 Password = GetPassword(),
                 Note = NoteBox.Text,
                 LinkedApps = _formLinks.ToList(),
+                Folder = FolderBox.SelectedValue as string ?? "",
             };
         }
 
@@ -287,6 +457,9 @@ namespace password
             var entry = ReadForm();
             if (entry == null) return;
             _entries.Add(entry);
+            // 存到別的資料夾時，左側切到那個資料夾，才看得到剛新增的這筆
+            if (!_folderFilter.Matches(entry))
+                _folderFilter = entry.Folder.Length == 0 ? FolderFilter.NoFolder : FolderFilter.Of(entry.Folder);
             PersistAndRefresh();
             EntryList.SelectedItem = entry;
         }
@@ -306,6 +479,7 @@ namespace password
             selected.Password = edited.Password;
             selected.Note = edited.Note;
             selected.LinkedApps = edited.LinkedApps;
+            selected.Folder = edited.Folder;
             PersistAndRefresh();
         }
 
@@ -369,18 +543,31 @@ namespace password
         private void PersistAndRefresh()
         {
             var selected = EntryList.SelectedItem as AccountEntry;
+            // 帳號用到、但清單裡沒有的資料夾（例如匯入的）一併補進清單
+            _folders = FolderService.Merge(_folders, _entries);
             try
             {
                 DataStore.Save(_entries);
+                DataStore.SaveFolders(_folders);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(Loc.T("save_failed", ex.Message), Loc.T("save_title"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
-            _view.Refresh();
-            // Refresh 會清掉選取，重新選回同一筆（改名後排序位置會變）
+            RebuildFolders();
+            if (_pendingFormFolder != null)
+            {
+                SetFormFolder(_pendingFormFolder);
+                _pendingFormFolder = null;
+            }
+            ApplyFilter();
+            // 重新篩選會清掉選取，重新選回同一筆（改名後排序位置會變）
             if (selected != null && _entries.Contains(selected))
+            {
                 EntryList.SelectedItem = selected;
+                // 移到別的資料夾後不在目前的清單裡了 → 清空表單，避免誤按「新增」複製一筆
+                if (EntryList.SelectedItem == null) ClearForm();
+            }
             UpdateStatus();
         }
 

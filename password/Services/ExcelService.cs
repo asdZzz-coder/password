@@ -9,7 +9,7 @@ namespace password.Services
         // 標題列依目前介面語言輸出；匯入時會略過標題列，所以中英文的檔案互通
         private static string[] Headers => new[]
         {
-            Loc.T("hdr_app"), Loc.T("hdr_user"), Loc.T("hdr_pwd"), Loc.T("hdr_note"), Loc.T("hdr_links"),
+            Loc.T("hdr_app"), Loc.T("hdr_user"), Loc.T("hdr_pwd"), Loc.T("hdr_note"), Loc.T("hdr_links"), Loc.T("hdr_folder"),
         };
 
         public static void Export(IEnumerable<AccountEntry> entries, string path)
@@ -32,6 +32,7 @@ namespace password.Services
                 // 連結的 App 一個一行，放在同一格
                 ws.Cell(r, 5).SetValue(Escape(string.Join("\n", e.LinkedApps)));
                 ws.Cell(r, 5).Style.Alignment.WrapText = true;
+                ws.Cell(r, 6).SetValue(Escape(e.Folder));
                 r++;
             }
             ws.Columns().AdjustToContents();
@@ -62,6 +63,8 @@ namespace password.Services
                         .Split(new[] { '\r', '\n', '、' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToList(),
+                    // 舊版匯出檔沒有第 6 欄（資料夾），此時為「無資料夾」
+                    Folder = FolderService.Normalize(row.Cell(6).GetFormattedString()),
                 };
                 if (entry.AppName.Length == 0 && entry.Username.Length == 0 && entry.Password.Length == 0)
                     continue;

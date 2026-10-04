@@ -12,6 +12,12 @@ namespace password.Models
         /// <summary>這個帳號連結了哪些 App（手動輸入的條列清單）。舊版資料檔沒有此欄位時會是空清單。</summary>
         public List<string> LinkedApps { get; set; } = new();
 
+        /// <summary>所屬資料夾名稱；空字串表示「無資料夾」。舊版資料檔沒有此欄位時為空字串。</summary>
+        public string Folder { get; set; } = "";
+
+        // 螢幕閱讀器與 UI 自動化讀到的名稱（不影響存檔）
+        public override string ToString() => AppName;
+
         /// <summary>清單右側徽章顯示的連結數量（僅供畫面使用，不存檔）。</summary>
         [JsonIgnore]
         public int LinkCount => LinkedApps.Count;

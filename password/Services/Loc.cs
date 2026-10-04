@@ -102,6 +102,32 @@ namespace password.Services
             ("btn_delete", "刪除", "Delete"),
             ("btn_delete_all", "清除全部資料", "Delete all data"),
 
+            // ----- 資料夾 -----
+            ("folders_title", "資料夾", "Folders"),
+            ("folder_all", "所有項目", "All items"),
+            ("folder_none", "無資料夾", "No folder"),
+            ("folder_new_tip", "新增資料夾", "New folder"),
+            ("folder_rename_tip", "重新命名", "Rename"),
+            ("folder_delete_tip", "刪除資料夾", "Delete folder"),
+            ("folder_new_title", "新增資料夾", "New Folder"),
+            ("folder_rename_title", "重新命名資料夾", "Rename Folder"),
+            ("folder_name_prompt", "資料夾名稱", "Folder name"),
+            ("folder_err_empty", "請輸入資料夾名稱。", "Please enter a folder name."),
+            ("folder_err_long", "名稱最多 {0} 個字。", "The name can be at most {0} characters."),
+            ("folder_err_dup", "已經有同名的資料夾。", "A folder with this name already exists."),
+            ("folder_delete_confirm", "要刪除資料夾「{0}」嗎？\n\n裡面的 {1} 筆帳號不會被刪除，會移到「無資料夾」。",
+                                      "Delete the folder \"{0}\"?\n\nThe {1} entries in it will not be deleted; they will be moved to \"No folder\"."),
+            ("folder_created", "已新增資料夾「{0}」", "Folder \"{0}\" created"),
+            ("folder_renamed", "已將資料夾改名為「{0}」", "Folder renamed to \"{0}\""),
+            ("folder_deleted", "已刪除資料夾「{0}」", "Folder \"{0}\" deleted"),
+            ("move_to", "移到資料夾", "Move to folder"),
+            ("move_to_new", "新增資料夾並移入…", "New folder and move here…"),
+            ("moved_to", "已將「{0}」移到「{1}」", "Moved \"{0}\" to \"{1}\""),
+            ("lbl_folder", "資料夾", "Folder"),
+            ("empty_filtered", "這裡沒有符合的帳號", "No matching entries here"),
+            ("btn_ok", "確定", "OK"),
+            ("btn_cancel", "取消", "Cancel"),
+
             // ----- 狀態列 / 訊息 -----
             ("count_text", "共 {0} 筆", "{0} entries"),
             ("dev_version", "開發版", "dev build"),
@@ -169,6 +195,7 @@ namespace password.Services
             ("hdr_pwd", "密碼", "Password"),
             ("hdr_note", "備註", "Notes"),
             ("hdr_links", "連結的 App", "Linked apps"),
+            ("hdr_folder", "資料夾", "Folder"),
         };
 
         private static readonly Dictionary<string, (string zh, string en)> Lookup =

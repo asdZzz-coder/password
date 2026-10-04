@@ -19,14 +19,15 @@ namespace password.Services
 
         private static readonly string FilePath = Path.Combine(DataDirectory, "data.bin");
 
+        // 資料夾清單另外存一個檔：data.bin 維持原本的格式，退回舊版時舊版仍讀得懂（只是看不到資料夾）
+        private static readonly string FoldersPath = Path.Combine(DataDirectory, "folders.bin");
+
         public static List<AccountEntry> Load()
         {
             if (!File.Exists(FilePath)) return new();
             try
             {
-                var cipher = File.ReadAllBytes(FilePath);
-                var plain = ProtectedData.Unprotect(cipher, null, DataProtectionScope.CurrentUser);
-                return JsonSerializer.Deserialize<List<AccountEntry>>(Encoding.UTF8.GetString(plain)) ?? new();
+                return JsonSerializer.Deserialize<List<AccountEntry>>(ReadEncrypted(FilePath)) ?? new();
             }
             catch (Exception ex) when (ex is CryptographicException or JsonException)
             {
@@ -36,14 +37,39 @@ namespace password.Services
             }
         }
 
-        public static void Save(IEnumerable<AccountEntry> entries)
+        public static void Save(IEnumerable<AccountEntry> entries) =>
+            WriteEncrypted(FilePath, JsonSerializer.Serialize(entries));
+
+        /// <summary>讀取資料夾清單；讀不到就回傳空清單（帳號上記錄的資料夾仍會被補回來）。</summary>
+        public static List<string> LoadFolders()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            var json = JsonSerializer.Serialize(entries);
+            if (!File.Exists(FoldersPath)) return new();
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(ReadEncrypted(FoldersPath)) ?? new();
+            }
+            catch (Exception ex) when (ex is CryptographicException or JsonException or IOException)
+            {
+                return new();
+            }
+        }
+
+        public static void SaveFolders(IEnumerable<string> folders) =>
+            WriteEncrypted(FoldersPath, JsonSerializer.Serialize(folders));
+
+        private static string ReadEncrypted(string path)
+        {
+            var plain = ProtectedData.Unprotect(File.ReadAllBytes(path), null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plain);
+        }
+
+        private static void WriteEncrypted(string path, string json)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var cipher = ProtectedData.Protect(Encoding.UTF8.GetBytes(json), null, DataProtectionScope.CurrentUser);
-            var tmp = FilePath + ".tmp";
+            var tmp = path + ".tmp";
             File.WriteAllBytes(tmp, cipher);
-            File.Move(tmp, FilePath, overwrite: true);
+            File.Move(tmp, path, overwrite: true);
         }
     }
 }

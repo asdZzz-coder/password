@@ -113,8 +113,29 @@ namespace password.Services
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PasswordKeeper-Setup");
             await Task.Run(() => ReplaceInstallSource(extractDir, installDir));
 
+            await EnsureClickOnceServiceRunningAsync();
             var manifest = Path.Combine(installDir, ManifestName);
             Process.Start(new ProcessStartInfo(manifest) { UseShellExecute = true, WorkingDirectory = installDir });
+        }
+
+        /// <summary>
+        /// ClickOnce 的背景服務 dfsvc.exe 沒在執行時，開啟 .application 有時完全沒反應（不報錯、也沒有紀錄）。
+        /// 程式開啟一陣子後 dfsvc 就會自己結束，所以按「更新」時通常已經不在了 → 先把它叫起來再開安裝檔。
+        /// </summary>
+        private static async Task EnsureClickOnceServiceRunningAsync()
+        {
+            if (Process.GetProcessesByName("dfsvc").Length > 0) return;
+            var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var dfsvc = new[] { @"Microsoft.NET\Framework64\v4.0.30319\dfsvc.exe", @"Microsoft.NET\Framework\v4.0.30319\dfsvc.exe" }
+                .Select(p => Path.Combine(windows, p))
+                .FirstOrDefault(File.Exists);
+            if (dfsvc == null) return;
+            try
+            {
+                Process.Start(new ProcessStartInfo(dfsvc) { UseShellExecute = false });
+                await Task.Delay(1000); // 等服務準備好
+            }
+            catch (System.ComponentModel.Win32Exception) { /* 叫不起來就照原本方式開安裝檔 */ }
         }
 
         private const string ManifestName = "PasswordKeeper.application";

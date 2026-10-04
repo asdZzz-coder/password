@@ -31,7 +31,22 @@ if errorlevel 8 goto copyfail
 
 :install
 echo 正在開啟安裝程式...
+rem ClickOnce 的背景服務（dfsvc）沒在執行時，開 .application 有時完全沒反應，先把它叫起來
+tasklist /FI "IMAGENAME eq dfsvc.exe" 2>nul | find /I "dfsvc.exe" >nul
+if errorlevel 1 (
+    set "DFSVC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\dfsvc.exe"
+    if not exist "%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\dfsvc.exe" set "DFSVC=%WINDIR%\Microsoft.NET\Framework\v4.0.30319\dfsvc.exe"
+    call :startdfsvc
+)
 start "" "%DEST%\PasswordKeeper.application"
+exit /b 0
+
+:startdfsvc
+if exist "%DFSVC%" (
+    start "" "%DFSVC%"
+    rem 等一秒讓服務準備好
+    ping -n 2 127.0.0.1 >nul
+)
 exit /b 0
 
 :copyfail

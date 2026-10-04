@@ -88,6 +88,7 @@ namespace password.Tests
         [Theory]
         [InlineData("App.xaml")]
         [InlineData("MainWindow.xaml")]
+        [InlineData("InputDialog.xaml")]
         public void Xaml_UsesOnlyDynamicPaletteBrushes(string file)
         {
             var xaml = ReadXaml(file);
