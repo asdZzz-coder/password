@@ -167,6 +167,8 @@ namespace password.Services
             ("update_title", "檢查更新", "Check for Updates"),
             ("update_dev", "目前是開發版（非安裝版），無法線上更新。", "This is a development build (not installed), so online updates are unavailable."),
             ("update_latest", "目前已是最新版本（{0}）。", "You are on the latest version ({0})."),
+            ("update_launcher", "發現新版本 {0}（目前 {1}）。\n\n請到「APP 啟動器」按「更新到 v{0}」，更新後從啟動器開啟新版。",
+                "Version {0} is available (current {1}).\n\nOpen the APP Launcher and click \"Update to v{0}\", then start the new version from the launcher."),
             ("update_found_title", "有新版本", "Update Available"),
             ("update_found", "發現新版本 {0}（目前 {1}）。\n\n是否現在更新？更新完成後程式會自動重新啟動。",
                              "Version {0} is available (current: {1}).\n\nUpdate now? The app will restart automatically when finished."),
